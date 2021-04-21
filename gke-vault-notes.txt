@@ -1,0 +1,61 @@
+gcloud container clusters create example-cluster \
+  --zone europe-west2-a \
+  --node-locations europe-west2-a,europe-west2-b,europe-west2-c \
+  --num-nodes 2 --enable-autoscaling --min-nodes 1 --max-nodes 3
+
+gcloud container clusters create example-cluster \
+    --zone europe-west2-a \
+    --node-locations europe-west2-a,europe-west2-b,europe-west2-c \
+    --num-nodes 1
+
+helm install vault hashicorp/vault --set "injector.enabled=false"
+
+helm install vault hashicorp/vault \
+  --set "server.ha.enabled=true" \
+  --set "server.ha.raft.enabled=true" \
+  --set "server.ha.raft.setNodeId=true" \
+  --set "server.ha.replicas=5" \
+  --set "injector.enabled=false"
+
+
+helm install vault hashicorp/vault 
+
+helm install vault hashicorp/vault -f helm-vault-overrides.yaml
+
+
+
+kubectl create secret generic tls-secret --from-file=tls.crt=./tf-tls/vault_cert.pem --from-file=tls.key=./tf-tls/vault_private_key.pem --from-file=ca.crt=./tf-tls/vault_ca_cert.pem
+
+kind create cluster --config kind-example-config.yaml
+
+
+kubectl exec --stdin=true --tty=true vault-0 -- vault operator init
+
+
+kubectl exec --stdin=true --tty=true vault-0 -- vault operator unseal
+
+
+
+
+
+vault operator init -key-shares=1 -key-threshold=1
+vault operator unseal
+
+
+
+vault operator raft list-peers
+
+kubectl exec vault-1 -- vault operator raft join http://vault-0.vault-internal:8200
+kubectl exec vault-2 -- vault operator raft join http://vault-0.vault-internal:8200
+kubectl exec vault-3 -- vault operator raft join http://vault-0.vault-internal:8200
+kubectl exec vault-4 -- vault operator raft join http://vault-0.vault-internal:8200
+
+vault operator raft join -leader-ca-cert="$(cat /vault/userconfig/tls-secret/ca.crt)" --address "https://vault-1.vault-internal:8200" "https://vault-0.vault-internal:8200"
+vault operator raft join -leader-ca-cert="$(cat /vault/userconfig/tls-secret/ca.crt)" --address "https://vault-2.vault-internal:8200" "https://vault-0.vault-internal:8200"
+vault operator raft join -leader-ca-cert="$(cat /vault/userconfig/tls-secret/ca.crt)" --address "https://vault-3.vault-internal:8200" "https://vault-0.vault-internal:8200"
+vault operator raft join -leader-ca-cert="$(cat /vault/userconfig/tls-secret/ca.crt)" --address "https://vault-4.vault-internal:8200" "https://vault-0.vault-internal:8200"
+
+
+
+Terraform created GKE
+gcloud container clusters get-credentials $(terraform output -raw kubernetes_cluster_name) --region $(terraform output -raw region)
